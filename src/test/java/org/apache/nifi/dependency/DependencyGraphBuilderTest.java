@@ -20,8 +20,6 @@ import org.apache.maven.artifact.Artifact;
 import org.apache.maven.artifact.DefaultArtifact;
 import org.apache.maven.artifact.handler.DefaultArtifactHandler;
 import org.apache.maven.artifact.resolver.filter.ArtifactFilter;
-import org.apache.maven.model.Dependency;
-import org.apache.maven.model.DependencyManagement;
 import org.apache.maven.project.DefaultProjectBuildingRequest;
 import org.apache.maven.project.DependencyResolutionException;
 import org.apache.maven.project.DependencyResolutionRequest;
@@ -30,18 +28,9 @@ import org.apache.maven.project.MavenProject;
 import org.apache.maven.project.ProjectBuildingRequest;
 import org.apache.maven.project.ProjectDependenciesResolver;
 import org.eclipse.aether.DefaultRepositorySystemSession;
-import org.eclipse.aether.RepositorySystem;
 import org.eclipse.aether.RepositorySystemSession;
-import org.eclipse.aether.collection.CollectRequest;
-import org.eclipse.aether.collection.CollectResult;
-import org.eclipse.aether.collection.DependencyCollectionException;
-import org.eclipse.aether.collection.DependencyCollectionContext;
-import org.eclipse.aether.collection.DependencySelector;
 import org.eclipse.aether.graph.DefaultDependencyNode;
 import org.eclipse.aether.util.graph.manager.DependencyManagerUtils;
-import org.eclipse.aether.util.graph.selector.AndDependencySelector;
-import org.eclipse.aether.util.graph.selector.ExclusionDependencySelector;
-import org.eclipse.aether.util.graph.selector.OptionalDependencySelector;
 import org.eclipse.aether.util.graph.transformer.ConflictResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -69,7 +58,6 @@ import static org.mockito.Mockito.when;
 class DependencyGraphBuilderTest {
 
     @Mock private ProjectDependenciesResolver projectDependenciesResolver;
-    @Mock private RepositorySystem repositorySystem;
     @Mock private DependencyResolutionResult resolutionResult;
 
     private MavenProject project;
@@ -87,7 +75,7 @@ class DependencyGraphBuilderTest {
         buildingRequest = new DefaultProjectBuildingRequest();
         buildingRequest.setProject(project);
         buildingRequest.setRepositorySession(new DefaultRepositorySystemSession());
-        builder = new DependencyGraphBuilder(projectDependenciesResolver, repositorySystem);
+        builder = new DependencyGraphBuilder(projectDependenciesResolver);
     }
 
     @Test
@@ -140,77 +128,32 @@ class DependencyGraphBuilderTest {
     }
 
     @Test
-    void collectsTheVerboseGraphOfTheProjectDependencies() throws Exception {
-        final Dependency direct = new Dependency();
-        direct.setGroupId("org.example");
-        direct.setArtifactId("api");
-        direct.setVersion("1.0");
-        project.getDependencies().add(direct);
-        final ArgumentCaptor<RepositorySystemSession> session = ArgumentCaptor.forClass(RepositorySystemSession.class);
-        final ArgumentCaptor<CollectRequest> collectRequest = ArgumentCaptor.forClass(CollectRequest.class);
-        final CollectResult collectResult = new CollectResult(new CollectRequest());
-        collectResult.setRoot(sampleGraph());
-        when(repositorySystem.collectDependencies(session.capture(), collectRequest.capture())).thenReturn(collectResult);
+    void verboseGraphKeepsConflictLosersThroughTheSessionConfig() throws Exception {
+        final ArgumentCaptor<DependencyResolutionRequest> request = ArgumentCaptor.forClass(DependencyResolutionRequest.class);
+        when(projectDependenciesResolver.resolve(request.capture())).thenReturn(resolutionResult);
+        when(resolutionResult.getDependencyGraph()).thenReturn(sampleGraph());
 
         final DependencyNode root = builder.collectDependencyGraph(buildingRequest, null);
 
         assertSame(project.getArtifact(), root.getArtifact());
         assertEquals(2, root.getChildren().size());
-        assertEquals(Boolean.TRUE, session.getValue().getConfigProperties().get(ConflictResolver.CONFIG_PROP_VERBOSE));
-        assertEquals(Boolean.TRUE, session.getValue().getConfigProperties().get(DependencyManagerUtils.CONFIG_PROP_VERBOSE));
-        assertTrue(session.getValue().getDependencyGraphTransformer() instanceof ConflictResolver);
-        assertEquals(new AndDependencySelector(
-                new DirectScopeDependencySelector("test"),
-                new DirectScopeDependencySelector("provided"),
-                new OptionalDependencySelector(),
-                new ExclusionDependencySelector()), session.getValue().getDependencySelector());
-        assertEquals("org.example:sample-nar:nar:1.0", collectRequest.getValue().getRootArtifact().toString());
-        assertEquals(1, collectRequest.getValue().getDependencies().size());
-        assertEquals("org.example:api:jar:1.0", collectRequest.getValue().getDependencies().get(0).getArtifact().toString());
-        assertTrue(collectRequest.getValue().getManagedDependencies().isEmpty());
+        final RepositorySystemSession session = request.getValue().getRepositorySession();
+        assertEquals(Boolean.TRUE, session.getConfigProperties().get(ConflictResolver.CONFIG_PROP_VERBOSE));
+        assertEquals(Boolean.TRUE, session.getConfigProperties().get(DependencyManagerUtils.CONFIG_PROP_VERBOSE));
+        assertNull(buildingRequest.getRepositorySession().getConfigProperties().get(ConflictResolver.CONFIG_PROP_VERBOSE),
+                "the caller's session is left as it is");
+        assertFalse(request.getValue().getResolutionFilter().accept(new DefaultDependencyNode(dependency("org.example", "api", "1.0", "compile", false)), Collections.emptyList()));
     }
 
     @Test
-    void collectRequestCarriesTheManagedDependencies() throws Exception {
-        final Dependency managed = new Dependency();
-        managed.setGroupId("org.example");
-        managed.setArtifactId("util");
-        managed.setVersion("2.5");
-        final DependencyManagement dependencyManagement = new DependencyManagement();
-        dependencyManagement.addDependency(managed);
-        project.getModel().setDependencyManagement(dependencyManagement);
-        final ArgumentCaptor<CollectRequest> collectRequest = ArgumentCaptor.forClass(CollectRequest.class);
-        final CollectResult collectResult = new CollectResult(new CollectRequest());
-        collectResult.setRoot(sampleGraph());
-        when(repositorySystem.collectDependencies(any(RepositorySystemSession.class), collectRequest.capture())).thenReturn(collectResult);
-
-        builder.collectDependencyGraph(buildingRequest, null);
-
-        assertEquals(1, collectRequest.getValue().getManagedDependencies().size());
-        assertEquals("org.example:util:jar:2.5", collectRequest.getValue().getManagedDependencies().get(0).getArtifact().toString());
-    }
-
-    @Test
-    void collectFilterDropsAnArtifactWithItsSubtree() throws Exception {
-        final CollectResult collectResult = new CollectResult(new CollectRequest());
-        collectResult.setRoot(sampleGraph());
-        when(repositorySystem.collectDependencies(any(RepositorySystemSession.class), any(CollectRequest.class))).thenReturn(collectResult);
+    void verboseFilterDropsAnArtifactWithItsSubtree() throws Exception {
+        when(projectDependenciesResolver.resolve(any(DependencyResolutionRequest.class))).thenReturn(resolutionResult);
+        when(resolutionResult.getDependencyGraph()).thenReturn(sampleGraph());
 
         final DependencyNode root = builder.collectDependencyGraph(buildingRequest, artifact -> !"api".equals(artifact.getArtifactId()));
 
         assertEquals(1, root.getChildren().size());
         assertEquals("extra", root.getChildren().get(0).getArtifact().getArtifactId());
-    }
-
-    @Test
-    void collectionFailureIsReported() throws Exception {
-        final CollectResult collectResult = new CollectResult(new CollectRequest());
-        final DependencyCollectionException failure = new DependencyCollectionException(collectResult, "failed");
-        when(repositorySystem.collectDependencies(any(RepositorySystemSession.class), any(CollectRequest.class))).thenThrow(failure);
-
-        final DependencyGraphException e = assertThrows(DependencyGraphException.class, () -> builder.collectDependencyGraph(buildingRequest, null));
-        assertTrue(e.getMessage().startsWith("Could not collect dependencies: "), e.getMessage());
-        assertSame(failure, e.getCause());
     }
 
     @Test
@@ -260,21 +203,6 @@ class DependencyGraphBuilderTest {
         });
 
         assertEquals(List.of("sample-nar", "api", "util"), visited);
-    }
-
-    @Test
-    void directScopeSelectorKeepsDirectDependenciesOfTheScope() {
-        final DependencySelector root = new DirectScopeDependencySelector("test");
-        final DependencyCollectionContext context = mock(DependencyCollectionContext.class);
-        final DependencySelector direct = root.deriveChildSelector(context);
-        final DependencySelector transitive = direct.deriveChildSelector(context);
-        final org.eclipse.aether.graph.Dependency testDependency = dependency("org.example", "junit", "1.0", "test", false);
-
-        assertTrue(direct.selectDependency(testDependency));
-        assertFalse(transitive.selectDependency(testDependency));
-        assertTrue(transitive.selectDependency(dependency("org.example", "api", "1.0", "compile", false)));
-        assertSame(transitive, transitive.deriveChildSelector(context));
-        assertEquals(transitive, direct.deriveChildSelector(context));
     }
 
     /**
