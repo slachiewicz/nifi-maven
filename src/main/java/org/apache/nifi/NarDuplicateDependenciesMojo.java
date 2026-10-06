@@ -31,10 +31,10 @@ import org.apache.maven.project.MavenProject;
 import org.apache.maven.project.ProjectBuilder;
 import org.apache.maven.project.ProjectBuildingException;
 import org.apache.maven.project.ProjectBuildingRequest;
-import org.apache.maven.shared.dependency.graph.DependencyCollectorBuilder;
-import org.apache.maven.shared.dependency.graph.DependencyCollectorBuilderException;
-import org.apache.maven.shared.dependency.graph.DependencyNode;
-import org.apache.maven.shared.dependency.graph.traversal.DependencyNodeVisitor;
+import org.apache.nifi.dependency.DependencyGraphBuilder;
+import org.apache.nifi.dependency.DependencyGraphException;
+import org.apache.nifi.dependency.DependencyNode;
+import org.apache.nifi.dependency.DependencyNodeVisitor;
 import org.apache.nifi.utils.NarDependencyUtils;
 import org.eclipse.aether.RepositorySystemSession;
 
@@ -69,7 +69,7 @@ public class NarDuplicateDependenciesMojo extends AbstractMojo {
      * The dependency tree builder to use for verbose output.
      */
     @Inject
-    private DependencyCollectorBuilder dependencyCollectorBuilder;
+    private DependencyGraphBuilder dependencyGraphBuilder;
 
     /**
      * *
@@ -99,7 +99,7 @@ public class NarDuplicateDependenciesMojo extends AbstractMojo {
             artifactHandlerManager.addHandlers(NarDependencyUtils.createNarHandlerMap(narRequest, project, projectBuilder));
 
             // get the dependency tree
-            final DependencyNode root = dependencyCollectorBuilder.collectDependencyGraph(narRequest, null);
+            final DependencyNode root = dependencyGraphBuilder.collectDependencyGraph(narRequest, null);
 
             DependencyNode narParent = root.getChildren()
                     .stream()
@@ -197,7 +197,7 @@ public class NarDuplicateDependenciesMojo extends AbstractMojo {
                 throw new MojoFailureException("Found duplicate dependencies");
             }
 
-        } catch (ProjectBuildingException | DependencyCollectorBuilderException e) {
+        } catch (ProjectBuildingException | DependencyGraphException e) {
             throw new MojoExecutionException("Cannot build project dependency tree", e);
         }
     }

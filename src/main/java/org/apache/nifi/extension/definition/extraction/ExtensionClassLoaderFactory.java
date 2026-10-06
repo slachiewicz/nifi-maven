@@ -35,10 +35,10 @@ import org.apache.maven.project.ProjectBuilder;
 import org.apache.maven.project.ProjectBuildingException;
 import org.apache.maven.project.ProjectBuildingRequest;
 import org.apache.maven.project.ProjectBuildingResult;
-import org.apache.maven.shared.dependency.graph.DependencyGraphBuilder;
-import org.apache.maven.shared.dependency.graph.DependencyGraphBuilderException;
-import org.apache.maven.shared.dependency.graph.DependencyNode;
-import org.apache.maven.shared.dependency.graph.traversal.DependencyNodeVisitor;
+import org.apache.nifi.dependency.DependencyGraphBuilder;
+import org.apache.nifi.dependency.DependencyGraphException;
+import org.apache.nifi.dependency.DependencyNode;
+import org.apache.nifi.dependency.DependencyNodeVisitor;
 import org.eclipse.aether.RepositorySystemSession;
 
 import java.io.File;
@@ -309,7 +309,7 @@ public class ExtensionClassLoaderFactory {
             final ArtifactFilter excludesFilter = new ExclusionSetFilter(EXCLUDED_ARTIFACT_IDS);
             final DependencyNode depNode = dependencyGraphBuilder.buildDependencyGraph(projectRequest, excludesFilter);
             depNode.accept(nodeVisitor);
-        } catch (DependencyGraphBuilderException e) {
+        } catch (DependencyGraphException e) {
             throw new MojoExecutionException("Failed to build dependency tree", e);
         }
         return artifacts;

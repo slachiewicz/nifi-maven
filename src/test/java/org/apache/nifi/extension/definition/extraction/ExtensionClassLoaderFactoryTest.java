@@ -27,7 +27,7 @@ import org.apache.maven.artifact.resolver.ArtifactResolver;
 import org.apache.maven.plugin.logging.Log;
 import org.apache.maven.project.MavenProject;
 import org.apache.maven.project.ProjectBuilder;
-import org.apache.maven.shared.dependency.graph.DependencyGraphBuilder;
+import org.apache.nifi.dependency.DependencyGraphBuilder;
 import org.eclipse.aether.RepositorySystemSession;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

@@ -31,10 +31,10 @@ import org.apache.maven.project.MavenProject;
 import org.apache.maven.project.ProjectBuilder;
 import org.apache.maven.project.ProjectBuildingException;
 import org.apache.maven.project.ProjectBuildingRequest;
-import org.apache.maven.shared.dependency.graph.DependencyGraphBuilder;
-import org.apache.maven.shared.dependency.graph.DependencyGraphBuilderException;
-import org.apache.maven.shared.dependency.graph.DependencyNode;
-import org.apache.maven.shared.dependency.graph.traversal.DependencyNodeVisitor;
+import org.apache.nifi.dependency.DependencyGraphBuilder;
+import org.apache.nifi.dependency.DependencyGraphException;
+import org.apache.nifi.dependency.DependencyNode;
+import org.apache.nifi.dependency.DependencyNodeVisitor;
 import org.apache.nifi.utils.NarDependencyUtils;
 import org.eclipse.aether.RepositorySystemSession;
 
@@ -121,7 +121,7 @@ public class NarProvidedDependenciesMojo extends AbstractMojo {
             // visit and print the results
             root.accept(visitor);
             getLog().info("--- Provided NAR Dependencies ---" + System.lineSeparator() + System.lineSeparator() + visitor);
-        } catch (ProjectBuildingException | DependencyGraphBuilderException e) {
+        } catch (ProjectBuildingException | DependencyGraphException e) {
             throw new MojoExecutionException("Cannot build project dependency tree", e);
         }
     }

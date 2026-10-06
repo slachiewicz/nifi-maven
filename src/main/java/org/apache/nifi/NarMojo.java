@@ -55,7 +55,7 @@ import org.apache.maven.shared.artifact.filter.collection.GroupIdFilter;
 import org.apache.maven.shared.artifact.filter.collection.ProjectTransitivityFilter;
 import org.apache.maven.shared.artifact.filter.collection.ScopeFilter;
 import org.apache.maven.shared.artifact.filter.collection.TypeFilter;
-import org.apache.maven.shared.dependency.graph.DependencyGraphBuilder;
+import org.apache.nifi.dependency.DependencyGraphBuilder;
 import org.apache.maven.shared.transfer.artifact.ArtifactCoordinate;
 import org.apache.nifi.extension.definition.ExtensionDefinition;
 import org.apache.nifi.extension.definition.ExtensionType;
