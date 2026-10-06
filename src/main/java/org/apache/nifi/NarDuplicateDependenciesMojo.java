@@ -18,7 +18,6 @@ package org.apache.nifi;
 
 import org.apache.maven.artifact.Artifact;
 import org.apache.maven.artifact.handler.ArtifactHandler;
-import org.apache.maven.artifact.handler.manager.ArtifactHandlerManager;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
@@ -71,12 +70,6 @@ public class NarDuplicateDependenciesMojo extends AbstractMojo {
     @Inject
     private DependencyGraphBuilder dependencyGraphBuilder;
 
-    /**
-     * *
-     * The {@link ArtifactHandlerManager} into which any extension {@link ArtifactHandler} instances should have been injected when the extensions were loaded.
-     */
-    @Inject
-    private ArtifactHandlerManager artifactHandlerManager;
 
     /**
      * The {@link ProjectBuilder} used to generate the {@code MavenProject} for the nar artifact the dependency tree is being generated for.
@@ -96,7 +89,7 @@ public class NarDuplicateDependenciesMojo extends AbstractMojo {
             narRequest.setRepositorySession(repoSession);
             narRequest.setSystemProperties(System.getProperties());
 
-            artifactHandlerManager.addHandlers(NarDependencyUtils.createNarHandlerMap(narRequest, project, projectBuilder));
+            NarDependencyUtils.prepareNarRequest(narRequest, project, projectBuilder);
 
             // get the dependency tree
             final DependencyNode root = dependencyGraphBuilder.collectDependencyGraph(narRequest, null);
