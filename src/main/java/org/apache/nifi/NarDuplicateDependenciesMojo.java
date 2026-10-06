@@ -66,7 +66,7 @@ public class NarDuplicateDependenciesMojo extends AbstractMojo {
 
 
     /**
-     * The dependency tree builder to use for verbose output.
+     * Builds the verbose dependency graph in which duplicate dependencies are looked for.
      */
     @Inject
     private DependencyGraphBuilder dependencyGraphBuilder;

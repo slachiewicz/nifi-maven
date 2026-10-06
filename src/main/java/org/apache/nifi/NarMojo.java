@@ -389,7 +389,7 @@ public class NarMojo extends AbstractMojo {
     public boolean silent;
 
     /**
-     * The dependency tree builder to use for verbose output.
+     * Builds the dependency graph of the project, from which the class loaders for extension documentation are created.
      */
     @Inject
     private DependencyGraphBuilder dependencyGraphBuilder;

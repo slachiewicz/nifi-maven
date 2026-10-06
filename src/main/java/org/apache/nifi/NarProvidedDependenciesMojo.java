@@ -70,7 +70,7 @@ public class NarProvidedDependenciesMojo extends AbstractMojo {
     private String mode;
 
     /**
-     * The dependency tree builder to use for verbose output.
+     * Builds the dependency graph from which the provided dependencies are listed.
      */
     @Inject
     private DependencyGraphBuilder dependencyGraphBuilder;

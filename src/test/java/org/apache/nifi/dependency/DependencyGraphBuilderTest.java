@@ -21,6 +21,7 @@ import org.apache.maven.artifact.DefaultArtifact;
 import org.apache.maven.artifact.handler.DefaultArtifactHandler;
 import org.apache.maven.artifact.resolver.filter.ArtifactFilter;
 import org.apache.maven.model.Dependency;
+import org.apache.maven.model.DependencyManagement;
 import org.apache.maven.project.DefaultProjectBuildingRequest;
 import org.apache.maven.project.DependencyResolutionException;
 import org.apache.maven.project.DependencyResolutionRequest;
@@ -33,10 +34,14 @@ import org.eclipse.aether.RepositorySystem;
 import org.eclipse.aether.RepositorySystemSession;
 import org.eclipse.aether.collection.CollectRequest;
 import org.eclipse.aether.collection.CollectResult;
+import org.eclipse.aether.collection.DependencyCollectionException;
 import org.eclipse.aether.collection.DependencyCollectionContext;
 import org.eclipse.aether.collection.DependencySelector;
 import org.eclipse.aether.graph.DefaultDependencyNode;
 import org.eclipse.aether.util.graph.manager.DependencyManagerUtils;
+import org.eclipse.aether.util.graph.selector.AndDependencySelector;
+import org.eclipse.aether.util.graph.selector.ExclusionDependencySelector;
+import org.eclipse.aether.util.graph.selector.OptionalDependencySelector;
 import org.eclipse.aether.util.graph.transformer.ConflictResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -154,9 +159,58 @@ class DependencyGraphBuilderTest {
         assertEquals(Boolean.TRUE, session.getValue().getConfigProperties().get(ConflictResolver.CONFIG_PROP_VERBOSE));
         assertEquals(Boolean.TRUE, session.getValue().getConfigProperties().get(DependencyManagerUtils.CONFIG_PROP_VERBOSE));
         assertTrue(session.getValue().getDependencyGraphTransformer() instanceof ConflictResolver);
+        assertEquals(new AndDependencySelector(
+                new DirectScopeDependencySelector("test"),
+                new DirectScopeDependencySelector("provided"),
+                new OptionalDependencySelector(),
+                new ExclusionDependencySelector()), session.getValue().getDependencySelector());
         assertEquals("org.example:sample-nar:nar:1.0", collectRequest.getValue().getRootArtifact().toString());
         assertEquals(1, collectRequest.getValue().getDependencies().size());
         assertEquals("org.example:api:jar:1.0", collectRequest.getValue().getDependencies().get(0).getArtifact().toString());
+        assertTrue(collectRequest.getValue().getManagedDependencies().isEmpty());
+    }
+
+    @Test
+    void collectRequestCarriesTheManagedDependencies() throws Exception {
+        final Dependency managed = new Dependency();
+        managed.setGroupId("org.example");
+        managed.setArtifactId("util");
+        managed.setVersion("2.5");
+        final DependencyManagement dependencyManagement = new DependencyManagement();
+        dependencyManagement.addDependency(managed);
+        project.getModel().setDependencyManagement(dependencyManagement);
+        final ArgumentCaptor<CollectRequest> collectRequest = ArgumentCaptor.forClass(CollectRequest.class);
+        final CollectResult collectResult = new CollectResult(new CollectRequest());
+        collectResult.setRoot(sampleGraph());
+        when(repositorySystem.collectDependencies(any(RepositorySystemSession.class), collectRequest.capture())).thenReturn(collectResult);
+
+        builder.collectDependencyGraph(buildingRequest, null);
+
+        assertEquals(1, collectRequest.getValue().getManagedDependencies().size());
+        assertEquals("org.example:util:jar:2.5", collectRequest.getValue().getManagedDependencies().get(0).getArtifact().toString());
+    }
+
+    @Test
+    void collectFilterDropsAnArtifactWithItsSubtree() throws Exception {
+        final CollectResult collectResult = new CollectResult(new CollectRequest());
+        collectResult.setRoot(sampleGraph());
+        when(repositorySystem.collectDependencies(any(RepositorySystemSession.class), any(CollectRequest.class))).thenReturn(collectResult);
+
+        final DependencyNode root = builder.collectDependencyGraph(buildingRequest, artifact -> !"api".equals(artifact.getArtifactId()));
+
+        assertEquals(1, root.getChildren().size());
+        assertEquals("extra", root.getChildren().get(0).getArtifact().getArtifactId());
+    }
+
+    @Test
+    void collectionFailureIsReported() throws Exception {
+        final CollectResult collectResult = new CollectResult(new CollectRequest());
+        final DependencyCollectionException failure = new DependencyCollectionException(collectResult, "failed");
+        when(repositorySystem.collectDependencies(any(RepositorySystemSession.class), any(CollectRequest.class))).thenThrow(failure);
+
+        final DependencyGraphException e = assertThrows(DependencyGraphException.class, () -> builder.collectDependencyGraph(buildingRequest, null));
+        assertTrue(e.getMessage().startsWith("Could not collect dependencies: "), e.getMessage());
+        assertSame(failure, e.getCause());
     }
 
     @Test
@@ -182,6 +236,30 @@ class DependencyGraphBuilderTest {
         });
 
         assertEquals(List.of("visit sample-nar", "visit api", "end api", "visit extra", "end extra", "end sample-nar"), events);
+    }
+
+    @Test
+    void endVisitReturningFalseStopsTheSiblings() throws Exception {
+        when(projectDependenciesResolver.resolve(any(DependencyResolutionRequest.class))).thenReturn(resolutionResult);
+        when(resolutionResult.getDependencyGraph()).thenReturn(sampleGraph());
+        final DependencyNode root = builder.buildDependencyGraph(buildingRequest, null);
+        final List<String> visited = new ArrayList<>();
+
+        root.accept(new DependencyNodeVisitor() {
+            @Override
+            public boolean visit(final DependencyNode node) {
+                visited.add(node.getArtifact().getArtifactId());
+                return true;
+            }
+
+            @Override
+            public boolean endVisit(final DependencyNode node) {
+                // stop after the subtree of api, so extra is not visited
+                return !"api".equals(node.getArtifact().getArtifactId());
+            }
+        });
+
+        assertEquals(List.of("sample-nar", "api", "util"), visited);
     }
 
     @Test

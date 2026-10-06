@@ -19,6 +19,7 @@ package org.apache.nifi.dependency;
 import org.apache.maven.RepositoryUtils;
 import org.apache.maven.artifact.Artifact;
 import org.apache.maven.artifact.resolver.filter.ArtifactFilter;
+import org.apache.maven.model.Dependency;
 import org.apache.maven.project.DefaultDependencyResolutionRequest;
 import org.apache.maven.project.DependencyResolutionException;
 import org.apache.maven.project.DependencyResolutionRequest;
@@ -30,7 +31,6 @@ import org.eclipse.aether.RepositorySystem;
 import org.eclipse.aether.artifact.ArtifactTypeRegistry;
 import org.eclipse.aether.collection.CollectRequest;
 import org.eclipse.aether.collection.DependencyCollectionException;
-import org.eclipse.aether.graph.Dependency;
 import org.eclipse.aether.util.artifact.JavaScopes;
 import org.eclipse.aether.util.graph.manager.DependencyManagerUtils;
 import org.eclipse.aether.util.graph.selector.AndDependencySelector;
@@ -115,11 +115,11 @@ public class DependencyGraphBuilder {
         final CollectRequest collectRequest = new CollectRequest();
         collectRequest.setRootArtifact(RepositoryUtils.toArtifact(project.getArtifact()));
         collectRequest.setRepositories(RepositoryUtils.toRepos(project.getRemoteArtifactRepositories()));
-        for (final org.apache.maven.model.Dependency dependency : project.getDependencies()) {
+        for (final Dependency dependency : project.getDependencies()) {
             collectRequest.addDependency(RepositoryUtils.toDependency(dependency, stereotypes));
         }
         if (project.getDependencyManagement() != null) {
-            for (final org.apache.maven.model.Dependency dependency : project.getDependencyManagement().getDependencies()) {
+            for (final Dependency dependency : project.getDependencyManagement().getDependencies()) {
                 collectRequest.addManagedDependency(RepositoryUtils.toDependency(dependency, stereotypes));
             }
         }
@@ -128,8 +128,6 @@ public class DependencyGraphBuilder {
             return toNode(null, repositorySystem.collectDependencies(session, collectRequest).getRoot(), project.getArtifact(), filter);
         } catch (final DependencyCollectionException e) {
             throw new DependencyGraphException("Could not collect dependencies: " + e.getResult(), e);
-        } finally {
-            session.setReadOnly();
         }
     }
 
@@ -146,7 +144,7 @@ public class DependencyGraphBuilder {
         return current;
     }
 
-    private static Artifact toArtifact(final Dependency dependency) {
+    private static Artifact toArtifact(final org.eclipse.aether.graph.Dependency dependency) {
         final Artifact artifact = RepositoryUtils.toArtifact(dependency.getArtifact());
         artifact.setScope(dependency.getScope());
         artifact.setOptional(dependency.isOptional());

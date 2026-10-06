@@ -18,7 +18,6 @@ package org.apache.nifi.dependency;
 
 import org.apache.maven.artifact.Artifact;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -39,8 +38,11 @@ public class DependencyNode {
         this.artifact = artifact;
     }
 
+    /**
+     * @param children the children, a list that nothing else changes afterwards
+     */
     void setChildren(final List<DependencyNode> children) {
-        this.children = Collections.unmodifiableList(new ArrayList<>(children));
+        this.children = Collections.unmodifiableList(children);
     }
 
     /**
